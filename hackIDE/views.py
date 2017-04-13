@@ -9,8 +9,11 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponseForbidden
 from models import codes
+from models import CompiledData
 
-import requests, json, os
+import requests, json, os 
+import urllib
+import random
 
 COMPILE_URL = "https://api.hackerearth.com/v3/code/compile/"
 RUN_URL = "https://api.hackerearth.com/v3/code/run/"
@@ -18,7 +21,7 @@ RUN_URL = "https://api.hackerearth.com/v3/code/run/"
 # access config variable
 DEBUG = (os.environ.get('HACKIDE_DEBUG') != None)
 # DEBUG = (os.environ.get('HACKIDE_DEBUG') or "").lower() == "true"
-CLIENT_SECRET = os.environ['HE_CLIENT_SECRET'] if not DEBUG else ""
+CLIENT_SECRET = os.environ['HE_CLIENT_SECRET']
 
 permitted_languages = ["C", "CPP", "CSHARP", "CLOJURE", "CSS", "HASKELL", "JAVA", "JAVASCRIPT", "OBJECTIVEC", "PERL", "PHP", "PYTHON", "R", "RUBY", "RUST", "SCALA"]
 
@@ -79,20 +82,40 @@ def compileCode(request):
       # Handle Invalid Language Case
       lang_valid_check(lang)
 
+      url = request.POST['url']
+
     except KeyError:
       # Handle case when at least one of the keys (lang or source) is absent
       missing_argument_error()
 
     else:
+      idMongo = random.randint(1,10000000)
+      CompiledData.objects(id=idMongo).delete()
+      callbackUrl = url+'receive-he-response/'
       compile_data = {
         'client_secret': CLIENT_SECRET,
-        'async': 0,
+        'async': 1,
         'source': source,
         'lang': lang,
+        'id':idMongo,
+        'callback':callbackUrl
       }
 
-      r = requests.post(COMPILE_URL, data=compile_data)
-      return JsonResponse(r.json(), safe=False)
+      print callbackUrl
+
+      compile_data = urllib.urlencode(compile_data)
+      response = urllib.urlopen(COMPILE_URL, compile_data)
+
+      print response.read()
+
+      data = CompiledData.objects(id=idMongo)
+      print data
+      data.delete()     
+
+
+      """r = requests.post(COMPILE_URL, data=compile_data)
+      return JsonResponse(r.json(), safe=False)"""
+      return HttpResponseForbidden();
   else:
     return HttpResponseForbidden();
 
@@ -221,3 +244,20 @@ def savedCodeView(request, code_id):
     'run_status_memory': run_status_memory,
     'run_status_stderr': run_status_status
   })
+
+"""
+Method to receive async response from hackerearth API
+"""
+def receiveHeResponse(request) :
+  print 'heree'
+  payload = request.POST.get('payload','')
+  payload = json.loads(payload)
+  id = payload.get('id')
+  print payload
+
+  compile_response = CompiledData.objects.create(
+        id=id,
+        payload=payload
+    )
+  compile_response.save()
+

@@ -226,7 +226,8 @@ $(document).ready(function(){
 		var compile_data = {
 			source: editorContent,
 			lang: languageSelected,
-			csrfmiddlewaretoken: csrf_token
+			csrfmiddlewaretoken: csrf_token,
+			url: window.location.href
 		};
 
 		request_ongoing = true;
